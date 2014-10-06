@@ -1,0 +1,60 @@
+#!/bin/bash
+
+function install_newrelic_php() {
+    local php_bin=${ROOT_DIR}/php5/bin/php
+    local MODULEDIR=`${php_bin} -r "echo ini_get('extension_dir');"`
+    local PHPAPI=`${php_bin} -r "echo substr(ini_get('extension_dir'), -8);"`
+    local PHPZTS=""
+    local ARCH=x64
+    local NRBASEDIR=${OPENSHIFT_RUNTIME_DIR}/bin/newrelic/newrelic-php5-${NEWRELIC_DAEMON_VERSION}-linux
+
+    mkdir -p ${OPENSHIFT_RUNTIME_DIR}/bin/newrelic
+    mkdir -p ${OPENSHIFT_RUNTIME_DIR}/log/newrelic
+
+    cd ${OPENSHIFT_RUNTIME_DIR}/bin/newrelic
+    if [[ ! -e newrelic-php5-${NEWRELIC_DAEMON_VERSION}-linux.tar.gz ]]; then
+        echo "Downloading New Relic application monitoring daemon."
+        wget http://download.newrelic.com/php_agent/release/newrelic-php5-${NEWRELIC_DAEMON_VERSION}-linux.tar.gz || \
+        wget http://download.newrelic.com/php_agent/archive/${NEWRELIC_DAEMON_VERSION}/newrelic-php5-${NEWRELIC_DAEMON_VERSION}-linux.tar.gz
+    fi
+    if [[ ! -d newrelic-php5-${NEWRELIC_DAEMON_VERSION}-linux ]]; then
+        echo "Unpacking New Relic application monitoring daemon."
+        tar xzvf newrelic-php5-${NEWRELIC_DAEMON_VERSION}-linux.tar.gz
+    fi
+    cd newrelic-php5-${NEWRELIC_DAEMON_VERSION}-linux
+
+    echo "Installing New Relic application monitoring daemon."
+    rm -f ${OPENSHIFT_RUNTIME_DIR}/bin/newrelic/newrelic-daemon
+    cp ${NRBASEDIR}/daemon/newrelic-daemon.${ARCH} ${OPENSHIFT_RUNTIME_DIR}/bin/newrelic/newrelic-daemon
+
+    echo "Installing New Relic PHP application monitoring extension."
+    rm -f ${MODULEDIR}/newrelic.so
+    ln -s ${NRBASEDIR}/agent/${ARCH}/newrelic-${PHPAPI}${PHPZTS}.so ${MODULEDIR}/newrelic.so
+
+    echo "Configuring New Relic PHP application monitoring extension."
+    rm -f ${OPENSHIFT_RUNTIME_DIR}/etc/php5/conf.d/newrelic.ini
+    cp ${NRBASEDIR}/scripts/newrelic.ini.template ${OPENSHIFT_RUNTIME_DIR}/etc/php5/conf.d/newrelic.ini
+    sed -i "s/REPLACE_WITH_REAL_KEY/${NEWRELIC_API_KEY}/" ${OPENSHIFT_RUNTIME_DIR}/etc/php5/conf.d/newrelic.ini
+    sed -i "s|/var/log/|${OPENSHIFT_RUNTIME_DIR}/log/|" ${OPENSHIFT_RUNTIME_DIR}/etc/php5/conf.d/newrelic.ini
+    sed -i "s|;\{0,1\}newrelic\\.daemon\\.auditlog =|newrelic.daemon.auditlog =|" ${OPENSHIFT_RUNTIME_DIR}/etc/php5/conf.d/newrelic.ini
+    sed -i "s|;\{0,1\}newrelic\\.daemon\\.location =.*|newrelic.daemon.location = \"${OPENSHIFT_RUNTIME_DIR}/bin/newrelic/newrelic-daemon\"|" ${OPENSHIFT_RUNTIME_DIR}/etc/php5/conf.d/newrelic.ini
+    sed -i "s|;\{0,1\}newrelic\\.appname =.*|newrelic.appname = \"${NEWRELIC_APPLICATION_NAME}\"|" ${OPENSHIFT_RUNTIME_DIR}/etc/php5/conf.d/newrelic.ini
+}
+
+function check_newrelic_php() {
+    local newrelic_php_bin=${OPENSHIFT_RUNTIME_DIR}/bin/newrelic/newrelic-daemon
+
+    if [[ ! -e ${newrelic_php_bin} ]]; then
+        echo "New Relic application monitoring not installed."
+        install_newrelic_php
+    else
+        local newrelic_php_version=`${newrelic_php_bin} -v 2>&1 | head -n1 | sed -e 's/[^0-9]*//' | cut -d ' ' -f1`
+
+        if [[ ${NEWRELIC_DAEMON_VERSION} != ${newrelic_php_version} ]]; then
+            echo "New Relic application monitoring old, version: ${newrelic_php_version}."
+            install_newrelic_php
+        else
+            echo "New Relic application monitoring up to date, version: ${newrelic_php_version}."
+        fi
+    fi
+}

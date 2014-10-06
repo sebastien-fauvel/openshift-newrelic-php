@@ -1,0 +1,54 @@
+#!/bin/bash
+
+function install_newrelic_sysmond() {
+    local ARCH=x64
+
+    mkdir -p ${OPENSHIFT_RUNTIME_DIR}/bin/newrelic
+    mkdir -p ${OPENSHIFT_RUNTIME_DIR}/log/newrelic
+    mkdir -p ${OPENSHIFT_RUNTIME_DIR}/etc/newrelic
+    mkdir -p ${OPENSHIFT_RUN_DIR}/newrelic
+
+    cd ${OPENSHIFT_RUNTIME_DIR}/bin/newrelic
+    if [[ ! -e newrelic-sysmond-${NEWRELIC_SYSMOND_VERSION}-linux.tar.gz ]]; then
+        echo "Downloading New Relic system monitoring daemon."
+        wget http://download.newrelic.com/server_monitor/release/newrelic-sysmond-${NEWRELIC_SYSMOND_VERSION}-linux.tar.gz || \
+        wget http://download.newrelic.com/server_monitor/archive/${NEWRELIC_SYSMOND_VERSION}/newrelic-sysmond-${NEWRELIC_SYSMOND_VERSION}-linux.tar.gz
+    fi
+    if [[ ! -d newrelic-sysmond-${NEWRELIC_SYSMOND_VERSION}-linux ]]; then
+        echo "Unpacking New Relic system monitoring daemon."
+        tar xzvf newrelic-sysmond-${NEWRELIC_SYSMOND_VERSION}-linux.tar.gz
+    fi
+    cd newrelic-sysmond-${NEWRELIC_SYSMOND_VERSION}-linux
+
+    echo "Installing New Relic system monitoring daemon."
+    rm -f ${OPENSHIFT_RUNTIME_DIR}/bin/newrelic/nrsysmond
+    cp daemon/nrsysmond.${ARCH} ${OPENSHIFT_RUNTIME_DIR}/bin/newrelic/nrsysmond
+    rm -f ${OPENSHIFT_RUNTIME_DIR}/bin/newrelic/nrsysmond-config
+    cp scripts/nrsysmond-config ${OPENSHIFT_RUNTIME_DIR}/bin/newrelic
+
+    echo "Configuring New Relic system monitoring daemon."
+    rm -f ${OPENSHIFT_RUNTIME_DIR}/etc/newrelic/nrsysmond.cfg
+    cp nrsysmond.cfg ${OPENSHIFT_RUNTIME_DIR}/etc/newrelic/nrsysmond.cfg
+    sed -i "s/REPLACE_WITH_REAL_KEY/${NEWRELIC_API_KEY}/" ${OPENSHIFT_RUNTIME_DIR}/etc/newrelic/nrsysmond.cfg
+    sed -i "s|/var/log/|${OPENSHIFT_RUNTIME_DIR}/log/|" ${OPENSHIFT_RUNTIME_DIR}/etc/newrelic/nrsysmond.cfg
+    sed -i "s|/var/run/|${OPENSHIFT_RUN_DIR}|" ${OPENSHIFT_RUNTIME_DIR}/etc/newrelic/nrsysmond.cfg
+    sed -i "s/#pidfile=/pidfile=/" ${OPENSHIFT_RUNTIME_DIR}/etc/newrelic/nrsysmond.cfg
+}
+
+function check_newrelic_sysmond() {
+    local newrelic_sysmond_bin=${OPENSHIFT_RUNTIME_DIR}/bin/newrelic/nrsysmond
+
+    if [[ ! -e ${newrelic_sysmond_bin} ]]; then
+        echo "New Relic system monitoring not installed."
+        install_newrelic_sysmond
+    else
+        local newrelic_sysmond_version=`${newrelic_sysmond_bin} -v 2>&1 | head -n1 | sed -e 's/[^0-9]*//' | cut -d ' ' -f1`
+
+        if [[ ${NEWRELIC_SYSMOND_VERSION} != ${newrelic_sysmond_version} ]]; then
+            echo "New Relic system monitoring old, version: ${newrelic_sysmond_version}."
+            install_newrelic_sysmond
+        else
+            echo "New Relic system monitoring up to date, version: ${newrelic_sysmond_version}."
+        fi
+    fi
+}

@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# This deploy hook gets executed after dependencies are resolved and the
+# build hook has been run but before the application has been started back
+# up again.  This script gets executed directly, so it could be python, php,
+# ruby, etc.
+
+set -e
+
+source ${OPENSHIFT_REPO_DIR}/.openshift/action_hooks/common
+
+BUILD_DIR=${OPENSHIFT_TMP_DIR}/build
+NGINX_DIR=${OPENSHIFT_RUNTIME_DIR}/nginx/
+PHP_DIR=${OPENSHIFT_RUNTIME_DIR}/php5/
+TEMPLATE_DIR=${OPENSHIFT_REPO_DIR}/.openshift/tmpl
+
+umask 077
+
+mkdir -p ${BUILD_DIR}
+
+echo "Pre-processing nginx config."
+cp ${TEMPLATE_DIR}/nginx.conf.tmpl ${BUILD_DIR}/nginx.conf
+perl -p -i -e 's/\$\{([^}]+)\}/defined $ENV{$1} ? $ENV{$1} : $&/eg' ${BUILD_DIR}/nginx.conf
+cp ${BUILD_DIR}/nginx.conf ${NGINX_DIR}/conf/nginx.conf
+
+echo "Pre-processing PHP-fpm config."
+cp ${TEMPLATE_DIR}/php-fpm.conf.tmpl ${BUILD_DIR}/php-fpm.conf
+perl -p -i -e 's/\$\{([^}]+)\}/defined $ENV{$1} ? $ENV{$1} : $&/eg' ${BUILD_DIR}/php-fpm.conf
+cp ${BUILD_DIR}/php-fpm.conf ${PHP_DIR}/etc/php-fpm.conf
+
+rm -rf ${BUILD_DIR}
+
+bash_profile=${OPENSHIFT_DATA_DIR}/.bash_profile
+echo "Copy bash profile."
+cp ${TEMPLATE_DIR}/bash_profile.tmpl ${bash_profile}
+
+export COMPOSER_HOME="$OPENSHIFT_DATA_DIR/.composer"
+if [ ! -f "$OPENSHIFT_DATA_DIR/composer.phar" ]; then
+    echo "Installing composer."
+    curl -s https://getcomposer.org/installer | ${PHP_DIR}/bin/php -- --install-dir=$OPENSHIFT_DATA_DIR
+else
+    echo "Updating composer."
+    ${PHP_DIR}/bin/php $OPENSHIFT_DATA_DIR/composer.phar self-update
+fi
+
+echo "Installing dependencies with composer."
+unset GIT_DIR
+cd $OPENSHIFT_REPO_DIR
+${PHP_DIR}/bin/php $OPENSHIFT_DATA_DIR/composer.phar install --no-dev -o
+
+echo "Optimizing composer autoloader."
+sed -i "s|\$vendorDir . '|'${OPENSHIFT_REPO_DIR}vendor|" ${OPENSHIFT_REPO_DIR}/vendor/composer/autoload_classmap.php
+sed -i "s|\$baseDir . '/|'${OPENSHIFT_REPO_DIR}|" ${OPENSHIFT_REPO_DIR}/vendor/composer/autoload_classmap.php
+
+if [ -f ${OPENSHIFT_RUNTIME_DIR}/bin/newrelic/nrsysmond ];then
+    echo "Sending deployment notification to New Relic."
+    curl -H "x-api-key:${NEWRELIC_API_KEY}" -d "deployment[app_name]=${NEWRELIC_APPLICATION_NAME}" https://api.newrelic.com/deployments.xml
+fi

@@ -1,0 +1,63 @@
+#!/bin/bash
+
+# Exit on first error.
+set -e
+
+# Configure versions
+NGINX_VERSION='1.6.2'
+PHP_VERSION='5.6.1'
+NODE_VERSION='0.10.32'
+NEWRELIC_DAEMON_VERSION='4.14.0.72'
+NEWRELIC_SYSMOND_VERSION='1.4.3.478'
+
+ZLIB_VERSION='1.2.8'
+PCRE_VERSION='8.36'
+ICU_VERSION='54.1'
+LIBMCRYPT_VERSION='2.5.8'
+LIBTOOL_VERSION='2.4.2'
+
+declare -A PHP_PECL
+declare -A PHP_PECL_CONFIGURE
+PHP_PECL=( ["mongo"]='1.5.7' ["stats"]='1.0.3' ["imagick"]='3.1.2' ["apcu"]='4.0.6' )
+PHP_PECL_CONFIGURE=( )
+
+# OpenShift sets GIT_DIR to . which terminates pull with an error:
+# Not a git repository: '.'
+unset GIT_DIR
+
+umask 077
+
+# Load common
+source ${OPENSHIFT_REPO_DIR}/.openshift/action_hooks/common
+
+# Setup dir references
+ROOT_DIR=${OPENSHIFT_RUNTIME_DIR}
+BUILD_DIR=${OPENSHIFT_TMP_DIR}/build
+CONFIG_DIR=${OPENSHIFT_DIY_DIR}/conf
+TEMPLATE_DIR=${OPENSHIFT_REPO_DIR}/.openshift/tmpl
+
+# Load functions
+source ${OPENSHIFT_REPO_DIR}/.openshift/action_hooks/build_nginx
+source ${OPENSHIFT_REPO_DIR}/.openshift/action_hooks/build_php_libs
+source ${OPENSHIFT_REPO_DIR}/.openshift/action_hooks/build_php
+source ${OPENSHIFT_REPO_DIR}/.openshift/action_hooks/build_node
+source ${OPENSHIFT_REPO_DIR}/.openshift/action_hooks/build_newrelic_php
+source ${OPENSHIFT_REPO_DIR}/.openshift/action_hooks/build_newrelic_sysmond
+
+# Check nginx
+check_nginx
+
+# Check PHP
+check_php
+
+# Check pecl extensions
+for ext in "${!PHP_PECL[@]}"; do
+    check_pecl ${ext} ${PHP_PECL["$ext"]} ${PHP_PECL_CONFIGURE["$ext"]};
+done
+
+# Check NodeJS
+check_node
+
+# Check New Relic
+check_newrelic_sysmond
+check_newrelic_php
