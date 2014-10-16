@@ -37,13 +37,13 @@ Put your New Relic API key and define your application name in `etc/newrelic`.
 
 ## Usage
 
-To deploy your application on OpenShift, you just have to do the following:
+To deploy your application on OpenShift and monitor it with New Relic, you just have to do the following:
 
-1. Create an [OpenShift account](https://www.openshift.com/) if you don't have one already.
-2. Create a new OpenShift "Do-It-Yourself" application. You can either use [OpenShift's web console](https://openshift.redhat.com/app/console/applications), or use the [OpenShift Client tools](https://developers.openshift.com/en/getting-started-client-tools.html) to create your application from the command line, with `rhc app create myapp diy-0.1`.
-3. Clone this repository and add a new remote `openshift` pointing to your OpenShift repository. You can either use the web console to find its URL on the application page, or use `rhc app show myapp`.
+1. Create an [OpenShift](https://www.openshift.com/) and a [New Relic](http://newrelic.com/) account.
+2. Create a new OpenShift "Do-It-Yourself" application from [OpenShift's web console](https://openshift.redhat.com/app/console/applications), and copy the URL of your application repository.
+3. Clone this repository with `git clone https://github.com/sebastien-fauvel/openshift-newrelic-php.git`, and add a new remote `openshift` pointing to your application repository with `git remote add openshift ssh://...`.
 4. Enter your New Relic API key in `etc/newrelic` and commit.
-5. Run `deploy.sh` and wait for the build to finish (this may take several hours).
+5. Run `deploy.sh` and wait for the build to finish (this may take several hours on the first run).
 6. Open your application in a web browser to verify.
 7. Check your application and server monitoring data in New Relic.
 8. When you commit some code, run `deploy.sh` or simply `git push openshift master` to deploy it to OpenShift.
@@ -57,3 +57,4 @@ Thanks to the following people:
 * [@drejohnson](https://github.com/drejohnson)
 * [@weierophinney](https://github.com/weierophinney)
 * [@openshift](https://github.com/openshift/)
+* [@newrelic](https://github.com/newrelic/)
