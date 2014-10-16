@@ -36,7 +36,7 @@ function install_newrelic_php() {
     cp ${NRBASEDIR}/scripts/newrelic.ini.template ${OPENSHIFT_RUNTIME_DIR}/etc/php5/conf.d/newrelic.ini
     sed -i "s/REPLACE_WITH_REAL_KEY/${NEWRELIC_API_KEY}/" ${OPENSHIFT_RUNTIME_DIR}/etc/php5/conf.d/newrelic.ini
     sed -i "s|/var/log/|${OPENSHIFT_RUNTIME_DIR}/log/|" ${OPENSHIFT_RUNTIME_DIR}/etc/php5/conf.d/newrelic.ini
-    sed -i "s|;\{0,1\}newrelic\\.daemon\\.auditlog =|newrelic.daemon.auditlog =|" ${OPENSHIFT_RUNTIME_DIR}/etc/php5/conf.d/newrelic.ini
+    sed -i "s|;\{0,1\}newrelic\\.daemon\\.auditlog =.*|newrelic.daemon.auditlog = \"\"|" ${OPENSHIFT_RUNTIME_DIR}/etc/php5/conf.d/newrelic.ini
     sed -i "s|;\{0,1\}newrelic\\.daemon\\.location =.*|newrelic.daemon.location = \"${OPENSHIFT_RUNTIME_DIR}/bin/newrelic/newrelic-daemon\"|" ${OPENSHIFT_RUNTIME_DIR}/etc/php5/conf.d/newrelic.ini
     sed -i "s|;\{0,1\}newrelic\\.appname =.*|newrelic.appname = \"${NEWRELIC_APPLICATION_NAME}\"|" ${OPENSHIFT_RUNTIME_DIR}/etc/php5/conf.d/newrelic.ini
 }
